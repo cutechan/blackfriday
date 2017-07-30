@@ -74,7 +74,7 @@ func emphasis(p *parser, out *bytes.Buffer, data []byte, offset int) int {
 	if len(data) > 2 && data[1] != c {
 		// whitespace cannot follow an opening emphasis;
 		// strikethrough only takes two characters '~~'
-		if c == '~' || isspace(data[1]) {
+		if c == '%' {
 			return 0
 		}
 		if ret = helperEmphasis(p, out, data[1:], c); ret == 0 {
@@ -85,7 +85,7 @@ func emphasis(p *parser, out *bytes.Buffer, data []byte, offset int) int {
 	}
 
 	if len(data) > 3 && data[1] == c && data[2] != c {
-		if isspace(data[2]) {
+		if false && isspace(data[2]) {
 			return 0
 		}
 		if ret = helperDoubleEmphasis(p, out, data[2:], c); ret == 0 {
@@ -96,7 +96,7 @@ func emphasis(p *parser, out *bytes.Buffer, data []byte, offset int) int {
 	}
 
 	if len(data) > 4 && data[1] == c && data[2] == c && data[3] != c {
-		if c == '~' || isspace(data[3]) {
+		if c == '%' {
 			return 0
 		}
 		if ret = helperTripleEmphasis(p, out, data, 3, c); ret == 0 {
@@ -200,6 +200,77 @@ func isReferenceStyleLink(data []byte, pos int, t linkType) bool {
 		return false
 	}
 	return pos < len(data)-1 && data[pos] == '[' && data[pos+1] != '^'
+}
+
+// >>123
+func postLink(p *parser, out *bytes.Buffer, data []byte, offset int) int {
+	data = data[offset:]
+	end := 0
+
+	if len(data) > 2 && data[1] == '>' && isnum(data[2]) {
+		end = 3
+		for len(data) > end && isnum(data[end]) {
+			end++
+		}
+		p.r.PostLink(out, data[:end])
+	}
+
+	return end
+}
+
+// :beast:
+func smile(p *parser, out *bytes.Buffer, data []byte, offset int) int {
+	data = data[offset:]
+	end := 0
+
+	// at least :x:
+	if len(data) > 2 && data[0] == ':' && isSmileID(data[1]) {
+		end = 2
+		for len(data) > end && isSmileID(data[end]) {
+			end++
+		}
+		if len(data) > end && data[end] == ':' {
+			end++
+			p.r.Smile(out, data[:end], string(data[1:end-1]))
+		} else {
+			return 0
+		}
+	}
+
+	return end
+}
+
+func isSmileID(c byte) bool {
+	return (c >= 'a' && c <= 'z') || isnum(c) || c == '_'
+}
+
+// !roll1-10
+func command(p *parser, out *bytes.Buffer, data []byte, offset int) int {
+	if offset > 0 && data[offset-1] != ' ' {
+		return 0
+	}
+
+	data = data[offset:]
+	end := 0
+	if len(data) < 5 {
+		return 0
+	}
+	cmd := string(data[1:5])
+	if cmd == "roll" || cmd == "flip" {
+		end = 5
+		for len(data) > end && isCommandQuery(data[end]) {
+			end++
+		}
+		if len(data) > end && data[end] != ' ' {
+			return 0
+		}
+		p.r.Command(out, data[:end], cmd, string(data[5:end]))
+	}
+	return end
+}
+
+func isCommandQuery(c byte) bool {
+	return isnum(c) || c == '-' || c == '%'
 }
 
 // '[': parse a link or an image or a footnote
@@ -624,7 +695,7 @@ func leftAngle(p *parser, out *bytes.Buffer, data []byte, offset int) int {
 }
 
 // '\\' backslash escape
-var escapeChars = []byte("\\`*_{}[]()#+-.!:|&<>~")
+var escapeChars = []byte("\\`*_{}[]()#+-.!:|&<>%")
 
 func escape(p *parser, out *bytes.Buffer, data []byte, offset int) int {
 	data = data[offset:]
@@ -693,6 +764,9 @@ func linkEndsWithEntity(data []byte, linkEnd int) bool {
 }
 
 func autoLink(p *parser, out *bytes.Buffer, data []byte, offset int) int {
+	if end := smile(p, out, data, offset); end > 0 {
+		return end
+	}
 	// quick check to rule out most false hits on ':'
 	if p.insideLink || len(data) < offset+3 || data[offset+1] != '/' || data[offset+2] != '/' {
 		return 0
@@ -707,7 +781,7 @@ func autoLink(p *parser, out *bytes.Buffer, data []byte, offset int) int {
 	}
 
 	anchorStr := anchorRe.Find(data[anchorStart:])
-	if anchorStr != nil {
+	if false && anchorStr != nil {
 		out.Write(anchorStr[offsetFromAnchor:])
 		return len(anchorStr) - offsetFromAnchor
 	}
@@ -821,7 +895,7 @@ func isEndOfLink(char byte) bool {
 	return isspace(char) || char == '<'
 }
 
-var validUris = [][]byte{[]byte("http://"), []byte("https://"), []byte("ftp://"), []byte("mailto://")}
+var validUris = [][]byte{[]byte("http://"), []byte("https://"), []byte("mailto:")}
 var validPaths = [][]byte{[]byte("/"), []byte("./"), []byte("../")}
 
 func isSafeLink(link []byte) bool {
@@ -1058,9 +1132,9 @@ func helperEmphasis(p *parser, out *bytes.Buffer, data []byte, c byte) int {
 			continue
 		}
 
-		if data[i] == c && !isspace(data[i-1]) {
+		if data[i] == c {
 
-			if p.flags&EXTENSION_NO_INTRA_EMPHASIS != 0 {
+			if p.flags&EXTENSION_NO_INTRA_EMPHASIS != 0 && c == '_' {
 				if !(i+1 == len(data) || isspace(data[i+1]) || ispunct(data[i+1])) {
 					continue
 				}
@@ -1086,13 +1160,13 @@ func helperDoubleEmphasis(p *parser, out *bytes.Buffer, data []byte, c byte) int
 		}
 		i += length
 
-		if i+1 < len(data) && data[i] == c && data[i+1] == c && i > 0 && !isspace(data[i-1]) {
+		if i+1 < len(data) && data[i] == c && data[i+1] == c && i > 0 {
 			var work bytes.Buffer
 			p.inline(&work, data[:i])
 
 			if work.Len() > 0 {
 				// pick the right renderer
-				if c == '~' {
+				if c == '%' {
 					p.r.StrikeThrough(out, work.Bytes())
 				} else {
 					p.r.DoubleEmphasis(out, work.Bytes())

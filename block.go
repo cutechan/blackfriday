@@ -73,6 +73,10 @@ func (p *parser) block(out *bytes.Buffer, data []byte) {
 
 		// blank lines.  note: returns the # of bytes to skip
 		if i := p.isEmpty(data); i > 0 {
+			p.r.LineBreak(out)
+			for i < len(data) && data[i] == '\n' {
+				i++
+			}
 			data = data[i:]
 			continue
 		}
@@ -189,6 +193,7 @@ func (p *parser) block(out *bytes.Buffer, data []byte) {
 }
 
 func (p *parser) isPrefixHeader(data []byte) bool {
+	return false
 	if data[0] != '#' {
 		return false
 	}
@@ -530,6 +535,7 @@ func (*parser) isEmpty(data []byte) int {
 }
 
 func (*parser) isHRule(data []byte) bool {
+	return false
 	i := 0
 
 	// skip up to three spaces
@@ -906,6 +912,9 @@ func (p *parser) quotePrefix(data []byte) int {
 		i++
 	}
 	if data[i] == '>' {
+		if data[i+1] == '>' {
+			return 0
+		}
 		if data[i+1] == ' ' {
 			return i + 2
 		}
@@ -957,6 +966,7 @@ func (p *parser) quote(out *bytes.Buffer, data []byte) int {
 		// this line is part of the blockquote
 		raw.Write(data[beg:end])
 		beg = end
+		break
 	}
 
 	var cooked bytes.Buffer
@@ -967,6 +977,7 @@ func (p *parser) quote(out *bytes.Buffer, data []byte) int {
 
 // returns prefix length for block code
 func (p *parser) codePrefix(data []byte) int {
+	return 0
 	if data[0] == ' ' && data[1] == ' ' && data[2] == ' ' && data[3] == ' ' {
 		return 4
 	}
@@ -1028,7 +1039,7 @@ func (p *parser) uliPrefix(data []byte) int {
 	}
 
 	// need a *, +, or - followed by a space
-	if (data[i] != '*' && data[i] != '+' && data[i] != '-') ||
+	if (data[i] != '*') ||
 		data[i+1] != ' ' {
 		return 0
 	}
@@ -1037,6 +1048,7 @@ func (p *parser) uliPrefix(data []byte) int {
 
 // returns ordered list item prefix
 func (p *parser) oliPrefix(data []byte) int {
+	return 0
 	i := 0
 
 	// start with up to 3 spaces
@@ -1059,6 +1071,7 @@ func (p *parser) oliPrefix(data []byte) int {
 
 // returns definition list item prefix
 func (p *parser) dliPrefix(data []byte) int {
+	return 0
 	i := 0
 
 	// need a : followed by a spaces
@@ -1253,7 +1266,7 @@ gatherlines:
 
 	// render the contents of the list item
 	var cooked bytes.Buffer
-	if *flags&LIST_ITEM_CONTAINS_BLOCK != 0 && *flags&LIST_TYPE_TERM == 0 {
+	if true || (*flags&LIST_ITEM_CONTAINS_BLOCK != 0 && *flags&LIST_TYPE_TERM == 0) {
 		// intermediate render of block item, except for definition term
 		if sublist > 0 {
 			p.block(&cooked, rawBytes[:sublist])
@@ -1297,7 +1310,7 @@ func (p *parser) renderParagraph(out *bytes.Buffer, data []byte) {
 	}
 
 	// trim trailing newline
-	end := len(data) - 1
+	end := len(data)
 
 	// trim trailing spaces
 	for end > beg && data[end-1] == ' ' {
@@ -1325,7 +1338,7 @@ func (p *parser) paragraph(out *bytes.Buffer, data []byte) int {
 		line = i
 
 		// did we find a blank line marking the end of the paragraph?
-		if n := p.isEmpty(current); n > 0 {
+		if n := p.isEmpty(current); n > 0 || data[i] == '\n' {
 			// did this blank line followed by a definition list item?
 			if p.flags&EXTENSION_DEFINITION_LISTS != 0 {
 				if i < len(data)-1 && data[i+1] == ':' {
@@ -1421,7 +1434,6 @@ func (p *parser) paragraph(out *bytes.Buffer, data []byte) int {
 		for data[i] != '\n' {
 			i++
 		}
-		i++
 	}
 
 	p.renderParagraph(out, data[:i])

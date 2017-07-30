@@ -182,6 +182,9 @@ type Renderer interface {
 	Emphasis(out *bytes.Buffer, text []byte)
 	Image(out *bytes.Buffer, link []byte, title []byte, alt []byte)
 	LineBreak(out *bytes.Buffer)
+	PostLink(out *bytes.Buffer, text []byte)
+	Smile(out *bytes.Buffer, text []byte, id string)
+	Command(out *bytes.Buffer, text []byte, cmd, query string)
 	Link(out *bytes.Buffer, link []byte, title []byte, content []byte)
 	RawHtmlTag(out *bytes.Buffer, tag []byte)
 	TripleEmphasis(out *bytes.Buffer, text []byte)
@@ -367,14 +370,15 @@ func MarkdownOptions(input []byte, renderer Renderer, opts Options) []byte {
 	p.inlineCallback['*'] = emphasis
 	p.inlineCallback['_'] = emphasis
 	if extensions&EXTENSION_STRIKETHROUGH != 0 {
-		p.inlineCallback['~'] = emphasis
+		p.inlineCallback['%'] = emphasis
 	}
 	p.inlineCallback['`'] = codeSpan
 	p.inlineCallback['\n'] = lineBreak
-	p.inlineCallback['['] = link
+	p.inlineCallback['>'] = postLink
 	p.inlineCallback['<'] = leftAngle
 	p.inlineCallback['\\'] = escape
 	p.inlineCallback['&'] = entity
+	p.inlineCallback['!'] = command
 
 	if extensions&EXTENSION_AUTOLINK != 0 {
 		p.inlineCallback[':'] = autoLink
@@ -422,7 +426,7 @@ func firstPass(p *parser, input []byte) []byte {
 
 		// add the line body if present
 		if end > beg {
-			if end < lastFencedCodeBlockEnd { // Do not expand tabs while inside fenced code blocks.
+			if true || end < lastFencedCodeBlockEnd { // Do not expand tabs while inside fenced code blocks.
 				out.Write(input[beg:end])
 			} else if refEnd := isReference(p, input[beg:], tabSize); refEnd > 0 {
 				beg += refEnd
@@ -536,6 +540,7 @@ func (r *reference) String() string {
 // Returns the number of bytes to skip to move past it,
 // or zero if the first line is not a reference.
 func isReference(p *parser, data []byte, tabSize int) int {
+	return 0
 	// up to 3 optional leading spaces
 	if len(data) < 4 {
 		return 0
@@ -816,6 +821,10 @@ func isletter(c byte) bool {
 // TODO: check when this is looking for ASCII alnum and when it should use unicode
 func isalnum(c byte) bool {
 	return (c >= '0' && c <= '9') || isletter(c)
+}
+
+func isnum(c byte) bool {
+	return c >= '0' && c <= '9'
 }
 
 // Replace tab characters with spaces, aligning to the next TAB_SIZE column.

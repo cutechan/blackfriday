@@ -178,6 +178,10 @@ func attrEscape(out *bytes.Buffer, src []byte) {
 	}
 }
 
+func AttrEscape(out *bytes.Buffer, src []byte) {
+	attrEscape(out, src)
+}
+
 func entityEscapeWithSkip(out *bytes.Buffer, src []byte, skipRanges [][]int) {
 	end := 0
 	for _, rang := range skipRanges {
@@ -283,7 +287,7 @@ func (options *Html) BlockCode(out *bytes.Buffer, text []byte, lang string) {
 	}
 
 	attrEscape(out, text)
-	out.WriteString("</code></pre>\n")
+	out.WriteString("</code></pre>")
 }
 
 func (options *Html) BlockQuote(out *bytes.Buffer, text []byte) {
@@ -391,9 +395,9 @@ func (options *Html) List(out *bytes.Buffer, text func() bool, flags int) {
 	if flags&LIST_TYPE_DEFINITION != 0 {
 		out.WriteString("</dl>\n")
 	} else if flags&LIST_TYPE_ORDERED != 0 {
-		out.WriteString("</ol>\n")
+		out.WriteString("</ol>")
 	} else {
-		out.WriteString("</ul>\n")
+		out.WriteString("</ul>")
 	}
 }
 
@@ -415,7 +419,7 @@ func (options *Html) ListItem(out *bytes.Buffer, text []byte, flags int) {
 	} else if flags&LIST_TYPE_DEFINITION != 0 {
 		out.WriteString("</dd>\n")
 	} else {
-		out.WriteString("</li>\n")
+		out.WriteString("</li>")
 	}
 }
 
@@ -428,16 +432,14 @@ func (options *Html) Paragraph(out *bytes.Buffer, text func() bool) {
 		out.Truncate(marker)
 		return
 	}
-	out.WriteString("</p>\n")
+	out.WriteString("</p>")
 }
 
 func (options *Html) AutoLink(out *bytes.Buffer, link []byte, kind int) {
 	skipRanges := htmlEntity.FindAllIndex(link, -1)
 	if options.flags&HTML_SAFELINK != 0 && !isSafeLink(link) && kind != LINK_TYPE_EMAIL {
 		// mark it but don't link it if it is not a safe link: no smartypants
-		out.WriteString("<tt>")
 		entityEscapeWithSkip(out, link, skipRanges)
-		out.WriteString("</tt>")
 		return
 	}
 
@@ -537,7 +539,15 @@ func (options *Html) Image(out *bytes.Buffer, link []byte, title []byte, alt []b
 func (options *Html) LineBreak(out *bytes.Buffer) {
 	out.WriteString("<br")
 	out.WriteString(options.closeTag)
-	out.WriteByte('\n')
+}
+
+func (options *Html) PostLink(out *bytes.Buffer, text []byte) {
+}
+
+func (options *Html) Smile(out *bytes.Buffer, text []byte, id string) {
+}
+
+func (options *Html) Command(out *bytes.Buffer, text []byte, cmd, q string) {
 }
 
 func (options *Html) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {
@@ -896,6 +906,7 @@ func skipChar(data []byte, start int, char byte) int {
 }
 
 func doubleSpace(out *bytes.Buffer) {
+	return
 	if out.Len() > 0 {
 		out.WriteByte('\n')
 	}

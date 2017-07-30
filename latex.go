@@ -230,6 +230,15 @@ func (options *Latex) LineBreak(out *bytes.Buffer) {
 	out.WriteString(" \\\\\n")
 }
 
+func (options *Latex) PostLink(out *bytes.Buffer, text []byte) {
+}
+
+func (options *Latex) Smile(out *bytes.Buffer, text []byte, id string) {
+}
+
+func (options *Latex) Command(out *bytes.Buffer, text []byte, cmd, q string) {
+}
+
 func (options *Latex) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {
 	out.WriteString("\\href{")
 	out.Write(link)
